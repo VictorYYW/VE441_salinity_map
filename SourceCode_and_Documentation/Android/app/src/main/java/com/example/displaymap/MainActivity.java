@@ -15,7 +15,8 @@ public class MainActivity extends AppCompatActivity {
     private MapView mMapView;
 
     private void addTrailheadsLayer() {
-        String url = "https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/ArcGIS/rest/services/trailheads/FeatureServer/0";
+        // String url = "https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/ArcGIS/rest/services/trailheads/FeatureServer/0";
+        String url = "https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/arcgis/rest/services/sample_data/FeatureServer/0";
         ServiceFeatureTable serviceFeatureTable = new ServiceFeatureTable(url);
         FeatureLayer featureLayer = new FeatureLayer(serviceFeatureTable);
         ArcGISMap map = mMapView.getMap();
@@ -27,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
             Basemap.Type basemapType = Basemap.Type.IMAGERY_WITH_LABELS;
             double latitude = 34.0270;
             double longitude = -118.8050;
-            int levelOfDetail = 13;
+            int levelOfDetail = 5;
             ArcGISMap map = new ArcGISMap(basemapType, latitude, longitude, levelOfDetail);
             mMapView.setMap(map);
         }
