@@ -6,9 +6,12 @@ import android.os.Bundle;
 
 import com.esri.arcgisruntime.ArcGISRuntimeEnvironment;
 import com.esri.arcgisruntime.data.ServiceFeatureTable;
+import com.esri.arcgisruntime.geometry.Point;
+import com.esri.arcgisruntime.geometry.SpatialReference;
 import com.esri.arcgisruntime.layers.FeatureLayer;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.Basemap;
+import com.esri.arcgisruntime.mapping.Viewpoint;
 import com.esri.arcgisruntime.mapping.view.MapView;
 import com.esri.arcgisruntime.portal.Portal;
 import com.esri.arcgisruntime.portal.PortalItem;
@@ -40,6 +43,9 @@ public class MainActivity extends AppCompatActivity {
             double longitude = -118.8050;
             int levelofDetail = 5;
             ArcGISMap map = new ArcGISMap(portalItem);
+            // set initial viewpoint to a specific region
+            map.setInitialViewpoint(
+                    new Viewpoint(new Point(-10977012.785807, 4514257.550369, SpatialReference.create(3857)), 68015210));
             mMapView.setMap(map);
         }
     }
