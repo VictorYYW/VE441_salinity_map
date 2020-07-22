@@ -10,6 +10,8 @@ import com.esri.arcgisruntime.layers.FeatureLayer;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.Basemap;
 import com.esri.arcgisruntime.mapping.view.MapView;
+import com.esri.arcgisruntime.portal.Portal;
+import com.esri.arcgisruntime.portal.PortalItem;
 
 public class MainActivity extends AppCompatActivity {
     private MapView mMapView;
@@ -25,11 +27,19 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupMap() {
         if (mMapView != null) {
-            Basemap.Type basemapType = Basemap.Type.IMAGERY_WITH_LABELS;
+//            Basemap.Type basemapType = Basemap.Type.IMAGERY_WITH_LABELS;
+//            double latitude = 34.0270;
+//            double longitude = -118.8050;
+//            int levelOfDetail = 5;
+//            ArcGISMap map = new ArcGISMap(basemapType, latitude, longitude, levelOfDetail);
+//            mMapView.setMap(map);
+            String itemId = "c99d7de508614ee98eb9ed21759d4064";
+            Portal portal = new Portal("https://www.arcgis.com", false);
+            PortalItem portalItem = new PortalItem(portal, itemId);
             double latitude = 34.0270;
             double longitude = -118.8050;
-            int levelOfDetail = 5;
-            ArcGISMap map = new ArcGISMap(basemapType, latitude, longitude, levelOfDetail);
+            int levelofDetail = 5;
+            ArcGISMap map = new ArcGISMap(portalItem);
             mMapView.setMap(map);
         }
     }
@@ -41,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
         ArcGISRuntimeEnvironment.setLicense(getResources().getString(R.string.arcgis_license_key));
         setupMap();
 
-        addTrailheadsLayer();
+        // addTrailheadsLayer();
     }
 
     @Override
