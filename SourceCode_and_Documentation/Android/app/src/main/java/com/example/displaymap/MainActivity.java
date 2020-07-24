@@ -3,6 +3,7 @@ package com.example.displaymap;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,6 +19,7 @@ import com.esri.arcgisruntime.layers.FeatureLayer;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.Basemap;
 import com.esri.arcgisruntime.mapping.Viewpoint;
+import com.esri.arcgisruntime.mapping.popup.Popup;
 import com.esri.arcgisruntime.mapping.view.DefaultMapViewOnTouchListener;
 import com.esri.arcgisruntime.mapping.view.IdentifyLayerResult;
 import com.esri.arcgisruntime.mapping.view.MapView;
@@ -29,6 +31,95 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
+    /** 1.1 ver
+     *  A custom OnTouchListener on MapView to identify geo-elements when users single tap
+     *  on a map view.
+     */
+    private class MyTouchListener extends DefaultMapViewOnTouchListener{
+        private MapView mapView;
+        private Context context;
+
+        /*
+         * Constructs a DefaultMapViewOnTouchListener with the given Context and MapView.
+         * @param context the context from which this is being created
+         * @param mapView the Mapview with which to interact
+         * @param since 100.0.0
+         */
+        public MyTouchListener(Context context, MapView mapView) {
+            super(context, mapView);
+
+            this.context = context;
+            this.mapView = mapView;
+        }
+
+        @Override
+        public boolean onSingleTapConfirmed(MotionEvent e) {
+            // Validation
+            if (mapView == null){
+                return super.onSingleTapConfirmed(e);
+            }
+
+            // Obtain GeoElements, and create popup
+            android.graphics.Point screenPoint = new android.graphics.Point((int) e.getX(), (int) e.getY());
+            doIdentify(mapView, screenPoint);
+
+            return true;
+        }
+
+        /**
+         * Creates popup for the first GeoElement obtained from identify.
+         *
+         * @param mapView
+         * @param screenPoint
+         */
+        private void doIdentify(final MapView mapView, final android.graphics.Point screenPoint) {
+            // Identify all layers in the map view
+            final ListenableFuture<List<IdentifyLayerResult>> future = mapView.identifyLayersAsync(
+                    screenPoint, 10.0, false, 3
+            );
+            future.addDoneListener(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // Obtain identify results
+                        List<IdentifyLayerResult> results = future.get();
+                        if ((results == null) || (results.isEmpty())){
+                            Log.i(TAG, "Null or empty result from identify. ");
+                            return;
+                        }
+
+                        // Get the first popup
+                        IdentifyLayerResult result = results.get(0);
+                        List<Popup> popups = result.getPopups();
+                        if ((popups == null) || (popups.isEmpty())) {
+                            Log.i(TAG, "Null or empty popup from identify. ");
+                        }
+
+                        Popup popup = popups.get(0);
+                        // Create a popup view for the first popup
+                        createPopupView(popup);
+                    } catch (Exception ex){
+                        Log.i(TAG, "exception in identify: " + ex.getMessage());
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Creates a popup view for a given popup.
+     * @param popup
+     */
+    private void createPopupView(Popup popup){
+        // Create a popup view
+        SimplePopupFragment fragment = SimplePopupFragment.newInstance();
+        fragment.setPopupManager(MainActivity.this, popup);
+        getSupportFragmentManager().beginTransaction().replace(android.R.id.content, fragment, "popup fragment")
+                .addToBackStack("popup fragment")
+                .commit();
+    }
+
+
     private final String TAG = MainActivity.class.getSimpleName();
 
     private MapView mMapView;
@@ -60,18 +151,24 @@ public class MainActivity extends AppCompatActivity {
             mMapView.setMap(map);
 
             // add a listener to detect taps on the map view
-            mMapView.setOnTouchListener(new DefaultMapViewOnTouchListener(MainActivity.this, mMapView) {
-                @Override public boolean onSingleTapConfirmed(MotionEvent e) {
-                    android.graphics.Point screenPoint = new android.graphics.Point(Math.round(e.getX()),
-                            Math.round(e.getY()));
-                    identifyResult(screenPoint);
-                    return true;
-                }
-            });
+            /* 1.0 ver
+            */
+//            mMapView.setOnTouchListener(new DefaultMapViewOnTouchListener(MainActivity.this, mMapView) {
+//                @Override public boolean onSingleTapConfirmed(MotionEvent e) {
+//                    android.graphics.Point screenPoint = new android.graphics.Point(Math.round(e.getX()),
+//                            Math.round(e.getY()));
+//                    identifyResult(screenPoint);
+//                    return true;
+//                }
+//            });
+
+            /* 1.1 ver
+             */
+            mMapView.setOnTouchListener(new MyTouchListener(this, mMapView));
         }
     }
 
-    /**
+    /** 1.0 ver
      * Performs an identify on layers at the given screenpoint and calls handleIdentifyResults(...) to process them.
      *
      * @param screenPoint in Android graphic coordinates.
@@ -93,7 +190,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
+    /** 1.0 ver
      * Processes identify results into a string which is passed to showAlertDialog(...).
      *
      * @param identifyLayerResults a list of identify results generated in identifyResult().
@@ -122,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
+    /** 1.0 ver
      * Gets a count of the GeoElements in the passed result layer.
      *
      * @param result from a single layer.
@@ -155,7 +252,7 @@ public class MainActivity extends AppCompatActivity {
         return count;
     }
 
-    /**
+    /** 1.0 ver
      * Shows message in an AlertDialog.
      *
      * @param message contains identify results processed into a string.
