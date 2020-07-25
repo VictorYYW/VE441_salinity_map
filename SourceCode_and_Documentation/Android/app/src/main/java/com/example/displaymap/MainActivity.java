@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -12,12 +13,16 @@ import android.widget.Toast;
 
 import com.esri.arcgisruntime.ArcGISRuntimeEnvironment;
 import com.esri.arcgisruntime.concurrent.ListenableFuture;
+import com.esri.arcgisruntime.data.ArcGISFeature;
+import com.esri.arcgisruntime.data.FeatureEditResult;
 import com.esri.arcgisruntime.data.ServiceFeatureTable;
 import com.esri.arcgisruntime.geometry.Point;
 import com.esri.arcgisruntime.geometry.SpatialReference;
 import com.esri.arcgisruntime.layers.FeatureLayer;
+import com.esri.arcgisruntime.loadable.LoadStatus;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.Basemap;
+import com.esri.arcgisruntime.mapping.GeoElement;
 import com.esri.arcgisruntime.mapping.Viewpoint;
 import com.esri.arcgisruntime.mapping.popup.Popup;
 import com.esri.arcgisruntime.mapping.view.DefaultMapViewOnTouchListener;
@@ -26,11 +31,16 @@ import com.esri.arcgisruntime.mapping.view.MapView;
 import com.esri.arcgisruntime.portal.Portal;
 import com.esri.arcgisruntime.portal.PortalItem;
 
+import java.text.AttributedCharacterIterator;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
+    private ArcGISFeature selectedFeature;
+    private ServiceFeatureTable featureTable;
+
     /** 1.1 ver
      *  A custom OnTouchListener on MapView to identify geo-elements when users single tap
      *  on a map view.
@@ -88,16 +98,19 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
 
-                        // Get the first popup
-                        IdentifyLayerResult result = results.get(0);
-                        List<Popup> popups = result.getPopups();
-                        if ((popups == null) || (popups.isEmpty())) {
-                            Log.i(TAG, "Null or empty popup from identify. ");
+                        List<GeoElement> geoElements = results.get(0).getElements();
+                        if ((geoElements == null) || (geoElements.isEmpty())) {
+                            Log.i(TAG, "Null or empty element from identify. ");
                         }
 
-                        Popup popup = popups.get(0);
-                        // Create a popup view for the first popup
-                        createPopupView(popup);
+                        if (geoElements.get(0) instanceof ArcGISFeature) {
+                            selectedFeature = (ArcGISFeature) geoElements.get(0);
+                            // show callout with the value for the attribute "typdamage" of the selected feature
+                            Map<String, Object> attributes = selectedFeature.getAttributes();
+                        }
+                        // Create popup
+                        Intent myIntent = new Intent(MainActivity.this, PopupActivity.class);
+                        startActivityForResult(myIntent, 100);
                     } catch (Exception ex){
                         Log.i(TAG, "exception in identify: " + ex.getMessage());
                     }
@@ -106,6 +119,86 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Function to read the result from newly created activity
+     */
+    @Override
+    protected void onActivityResult(int requestCode,
+                                    int resultCode, final Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == 100) {
+            // display progress dialog while updating attribute callout
+            //mProgressDialog.show();
+            updateAttributes(data.getStringExtra("salinity"));
+        }
+    }
+    /**
+     * Applies changes to the feature, Service Feature Table, and server.
+     */
+    private void updateAttributes(final String salinity) {
+
+        // load the selected feature
+        selectedFeature.loadAsync();
+
+        // update the selected feature
+        selectedFeature.addDoneLoadingListener(new Runnable() {
+            @Override public void run() {
+                if (selectedFeature.getLoadStatus() == LoadStatus.FAILED_TO_LOAD) {
+                    Log.e(TAG, "Error while loading feature");
+                }
+
+                // update the Attributes map with the new selected value for "typdamage"
+                selectedFeature.getAttributes().put("salinity", salinity);
+
+                try {
+                    // update feature in the feature table
+                    ListenableFuture<Void> mapViewResult = featureTable.updateFeatureAsync(selectedFeature);
+                    /*mServiceFeatureTable.updateFeatureAsync(mSelectedArcGISFeature).addDoneListener(new Runnable() {*/
+                    mapViewResult.addDoneListener(new Runnable() {
+                        @Override
+                        public void run() {
+                            // apply change to the server
+                            final ListenableFuture<List<FeatureEditResult>> serverResult = featureTable.applyEditsAsync();
+
+                            serverResult.addDoneListener(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+
+                                        // check if server result successful
+                                        List<FeatureEditResult> edits = serverResult.get();
+                                        if (!edits.isEmpty()) {
+                                            if (!edits.get(0).hasCompletedWithErrors()) {
+                                                Log.e(TAG, "Feature successfully updated");
+                                                //mSnackbarSuccess.show();
+                                                //mFeatureUpdated = true;
+                                            }
+                                        } else {
+                                            Log.e(TAG, "The attribute type was not changed");
+                                            //mSnackbarFailure.show();
+                                            //mFeatureUpdated = false;
+                                        }
+                                        /*
+                                        if (mProgressDialog.isShowing()) {
+                                            mProgressDialog.dismiss();
+                                            // display the callout with the updated value
+                                            showCallout((String) mSelectedArcGISFeature.getAttributes().get("typdamage"));
+                                        }
+
+                                         */
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "applying changes to the server failed: " + e.getMessage());
+                                    }
+                                }
+                            });
+                        }
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "updating feature in the feature table failed: " + e.getMessage());
+                }
+            }
+        });
+    }
     /**
      * Creates a popup view for a given popup.
      * @param popup
@@ -286,6 +379,7 @@ public class MainActivity extends AppCompatActivity {
         mMapView = findViewById(R.id.mapView);
         ArcGISRuntimeEnvironment.setLicense(getResources().getString(R.string.arcgis_license_key));
         setupMap();
+        featureTable = new ServiceFeatureTable(getResources().getString(R.string.sample_service_url));
 
         // addTrailheadsLayer();
     }
