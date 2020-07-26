@@ -107,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
                             selectedFeature = (ArcGISFeature) geoElements.get(0);
                             // show callout with the value for the attribute "typdamage" of the selected feature
                             Map<String, Object> attributes = selectedFeature.getAttributes();
+                            Log.i(TAG, Integer.toString((Integer) attributes.get("salinity")));
                         }
                         // Create popup
                         Intent myIntent = new Intent(MainActivity.this, PopupActivity.class);
@@ -148,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // update the Attributes map with the new selected value for "typdamage"
-                selectedFeature.getAttributes().put("salinity", salinity);
+                selectedFeature.getAttributes().put("salinity", Integer.parseInt(salinity));
 
                 try {
                     // update feature in the feature table
