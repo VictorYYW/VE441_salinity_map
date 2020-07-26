@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Display Map</string>
-    <string name="sample_service_url">https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/ArcGIS/rest/services/sample_data/FeatureServer/0</string>
+    <string name="sample_service_url">https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/arcgis/rest/services/sample_data/FeatureServer/0</string>
 </resources>

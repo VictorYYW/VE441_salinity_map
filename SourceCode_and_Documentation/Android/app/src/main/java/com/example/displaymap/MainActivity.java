@@ -71,10 +71,56 @@ public class MainActivity extends AppCompatActivity {
 
             // Obtain GeoElements, and create popup
             android.graphics.Point screenPoint = new android.graphics.Point((int) e.getX(), (int) e.getY());
-            doIdentify(mapView, screenPoint);
+            doIdentify_singletap(mapView, screenPoint);
 
             return true;
         }
+
+        @Override
+        public void onLongPress(MotionEvent e) {
+            // Validation
+            if (mapView == null) {
+                super.onLongPress(e);
+            }
+
+            // Obtain GeoElements, and create popup
+            android.graphics.Point screenPoint = new android.graphics.Point((int) e.getX(), (int) e.getY());
+            doIdentify_longpress(mapView, screenPoint);
+        }
+
+        private void doIdentify_singletap(final MapView mapView, final android.graphics.Point screenPoint) {
+            // Identify all layers in the map view
+            final ListenableFuture<List<IdentifyLayerResult>> future = mapView.identifyLayersAsync(
+                    screenPoint, 10.0, false, 3
+            );
+            future.addDoneListener(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // Obtain identify results
+                        List<IdentifyLayerResult> results = future.get();
+                        if ((results == null) || (results.isEmpty())){
+                            Log.i(TAG, "Null or empty result from identify. ");
+                            return;
+                        }
+
+                        // Get the first popup
+                        IdentifyLayerResult result = results.get(0);
+                        List<Popup> popups = result.getPopups();
+                        if ((popups == null) || (popups.isEmpty())) {
+                            Log.i(TAG, "Null or empty popup from identify. ");
+                        }
+
+                        Popup popup = popups.get(0);
+                        // Create a popup view for the first popup
+                        createPopupView(popup);
+                    } catch (Exception ex){
+                        Log.i(TAG, "exception in identify: " + ex.getMessage());
+                    }
+                }
+            });
+        }
+    }
 
         /**
          * Creates popup for the first GeoElement obtained from identify.
@@ -82,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
          * @param mapView
          * @param screenPoint
          */
-        private void doIdentify(final MapView mapView, final android.graphics.Point screenPoint) {
+        private void doIdentify_longpress(final MapView mapView, final android.graphics.Point screenPoint) {
             // Identify all layers in the map view
             final ListenableFuture<List<IdentifyLayerResult>> future = mapView.identifyLayersAsync(
                     screenPoint, 10.0, false, 3
@@ -118,7 +164,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
-    }
 
     /**
      * Function to read the result from newly created activity
