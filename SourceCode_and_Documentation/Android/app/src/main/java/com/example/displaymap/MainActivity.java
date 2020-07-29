@@ -104,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
     private Route mRoute;
     private GraphicsOverlay mGraphicsOverlay;
 
+    // variables for route
+    private Graphic added_route = null;
+
 
     private void setupOAuthManager() {
         String clientId = getResources().getString(R.string.client_id);
@@ -122,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
      *  A custom OnTouchListener on MapView to identify geo-elements when users single tap
      *  on a map view.
      */
-    private class MyTouchListener extends DefaultMapViewOnTouchListener{
+    private class MyTouchListener extends DefaultMapViewOnTouchListener {
         private MapView mapView;
         private Context context;
 
@@ -142,12 +145,16 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
             // Validation
-            if (mapView == null){
+            if (mapView == null) {
                 return super.onSingleTapConfirmed(e);
             }
 
             // Obtain GeoElements, and create popup
             android.graphics.Point screenPoint = new android.graphics.Point((int) e.getX(), (int) e.getY());
+            // Debug: get the x and y
+            Log.e(TAG, Float.toString(e.getX()));
+            Log.e(TAG, Float.toString(e.getY()));
+
             doIdentify_singletap(mapView, screenPoint);
 
             return true;
@@ -165,6 +172,141 @@ public class MainActivity extends AppCompatActivity {
             doIdentify_longpress(mapView, screenPoint);
         }
 
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            // Validation
+            if (mapView == null) {
+                return super.onDoubleTap(e);
+            }
+
+            // Obtain GeoElements, and create popup
+            android.graphics.Point screenPoint = new android.graphics.Point((int) e.getX(), (int) e.getY());
+            doIdentify_doubleTap(mapView, screenPoint, e);
+
+            return true;
+        }
+
+
+        /**
+         * Creates popup for navigation function
+         *
+         * @param mapView
+         * @param screenPoint
+         */
+        private void doIdentify_doubleTap(final MapView mapView, final android.graphics.Point screenPoint, MotionEvent e) {
+            // Identify all layers in the map view
+            final ListenableFuture<List<IdentifyLayerResult>> future = mapView.identifyLayersAsync(
+                    screenPoint, 10.0, false, 3
+            );
+            future.addDoneListener(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        // Obtain identify results
+                        List<IdentifyLayerResult> results = future.get();
+                        if ((results == null) || (results.isEmpty())) {
+                            Log.i(TAG, "Null or empty result from identify. ");
+                            MyTouchListener.super.onDoubleTap(e);
+                            return;
+                        }
+
+                        // Get the first location of results
+                        IdentifyLayerResult result = results.get(0);
+                        Map<String, Object> attr = result.getElements().get(0).getAttributes();
+
+                        // symbols that display incident (black cross) and route (blue line) to view
+                        SimpleMarkerSymbol incidentSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.Style.CROSS, Color.BLACK, 20);
+                        mRouteSymbol = new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.BLUE, 2.0f);
+                        mProgressDialog = new ProgressDialog(context);
+                        mProgressDialog.setTitle("Finding route");
+                        // create RouteTask instance
+                        mProgressDialog.show();
+                        mRouteTask = new RouteTask(getApplicationContext(), getString(R.string.routing_service));
+                        final ListenableFuture<RouteParameters> listenableFuture = mRouteTask.createDefaultParametersAsync();
+                        listenableFuture.addDoneListener(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    if (listenableFuture.isDone()) {
+                                        int i = 0;
+                                        mRouteParams = listenableFuture.get();
+
+                                        Point curPoint = mLocationDisplay.getMapLocation();
+                                        Log.e(TAG,curPoint.toString());
+
+                                        Double x = (Double) attr.get("longitude");
+                                        Double y = (Double) attr.get("latitude");
+                                        Log.e(TAG, x.toString());
+                                        Log.e(TAG, y.toString());
+
+                                        // create stops
+                                        Stop stop1 = new Stop(curPoint);
+                                        Stop stop2 = new Stop(
+                                                new Point(x,
+                                                        y, SpatialReferences.getWgs84())
+                                        );
+
+                                        List<Stop> routeStops = new ArrayList<>();
+                                        // add stops
+                                        routeStops.add(stop1);
+                                        routeStops.add(stop2);
+                                        mRouteParams.setStops(routeStops);
+
+                                        // set return directions as true to return turn-by-turn directions in the result of
+                                        // getDirectionManeuvers().
+                                        mRouteParams.setReturnDirections(true);
+
+                                        // solve
+                                        RouteResult result = mRouteTask.solveRouteAsync(mRouteParams).get();
+                                        final List routes = result.getRoutes();
+                                        mRoute = (Route) routes.get(0);
+                                        // create a mRouteSymbol graphic
+                                        Graphic routeGraphic = new Graphic(mRoute.getRouteGeometry(), mRouteSymbol);
+                                        // check before add the route
+                                        if (added_route != null){
+                                            mGraphicsOverlay.getGraphics().remove(added_route);
+                                        }
+                                        // add mRouteSymbol graphic to the map
+                                        mGraphicsOverlay.getGraphics().add(routeGraphic);
+                                        added_route = routeGraphic;
+                                        // get directions
+                                        // NOTE: to get turn-by-turn directions Route Parameters should set returnDirection flag as true
+                                        final List<DirectionManeuver> directions = mRoute.getDirectionManeuvers();
+
+                                        String[] directionsArray = new String[directions.size()];
+
+                                        for (DirectionManeuver dm : directions) {
+                                            directionsArray[i++] = dm.getDirectionText();
+                                        }
+                                        Log.d(TAG, directions.get(0).getGeometry().getExtent().getXMin() + "");
+                                        Log.d(TAG, directions.get(0).getGeometry().getExtent().getYMin() + "");
+
+
+
+                                        if (mProgressDialog.isShowing()) {
+                                            mProgressDialog.dismiss();
+                                        }
+
+                                    }
+                                } catch (Exception e) {
+                                    Log.e(TAG, e.getMessage());
+                                }
+                            }
+                        });
+                    } catch (Exception ex) {
+                        Log.i(TAG, "exception in identify: " + ex.getMessage());
+                    }
+                }
+            });
+        }
+
+
+        /**
+         * Creates popup for the information popup
+         *
+         * @param mapView
+         * @param screenPoint
+         */
         private void doIdentify_singletap(final MapView mapView, final android.graphics.Point screenPoint) {
             // Identify all layers in the map view
             final ListenableFuture<List<IdentifyLayerResult>> future = mapView.identifyLayersAsync(
@@ -176,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         // Obtain identify results
                         List<IdentifyLayerResult> results = future.get();
-                        if ((results == null) || (results.isEmpty())){
+                        if ((results == null) || (results.isEmpty())) {
                             Log.i(TAG, "Null or empty result from identify. ");
                             return;
                         }
@@ -191,16 +333,15 @@ public class MainActivity extends AppCompatActivity {
                         Popup popup = popups.get(0);
                         // Create a popup view for the first popup
                         createPopupView(popup);
-                    } catch (Exception ex){
+                    } catch (Exception ex) {
                         Log.i(TAG, "exception in identify: " + ex.getMessage());
                     }
                 }
             });
         }
-    }
 
         /**
-         * Creates popup for the first GeoElement obtained from identify.
+         * Creates popup for the update function.
          *
          * @param mapView
          * @param screenPoint
@@ -216,7 +357,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         // Obtain identify results
                         List<IdentifyLayerResult> results = future.get();
-                        if ((results == null) || (results.isEmpty())){
+                        if ((results == null) || (results.isEmpty())) {
                             Log.i(TAG, "Null or empty result from identify. ");
                             return;
                         }
@@ -235,12 +376,13 @@ public class MainActivity extends AppCompatActivity {
                         // Create popup
                         Intent myIntent = new Intent(MainActivity.this, PopupActivity.class);
                         startActivityForResult(myIntent, 100);
-                    } catch (Exception ex){
+                    } catch (Exception ex) {
                         Log.i(TAG, "exception in identify: " + ex.getMessage());
                     }
                 }
             });
         }
+    }
 
     /**
      * Function to read the result from newly created activity
@@ -387,7 +529,7 @@ public class MainActivity extends AppCompatActivity {
             ArcGISMap map = new ArcGISMap(portalItem);
             // set initial viewpoint to a specific region
             map.setInitialViewpoint(
-                    new Viewpoint(new Point(-10977012.785807, 4514257.550369, SpatialReference.create(3857)), 68015210));
+                    new Viewpoint(new Point(-12977012.785807, 4514257.550369, SpatialReference.create(3857)), 38015210));
             mMapView.setMap(map);
 
             // add a listener to detect taps on the map view
@@ -599,7 +741,7 @@ public class MainActivity extends AppCompatActivity {
                                         Iterator<Feature> featureIt = queryResultFuture.get().iterator();
                                         if (!featureIt.hasNext())
                                             Log.e(TAG, "no next");
-                                         feature = featureIt.next();
+                                        feature = featureIt.next();
                                     } catch (ExecutionException e) {
                                         e.printStackTrace();
                                     } catch (InterruptedException e) {
@@ -641,8 +783,13 @@ public class MainActivity extends AppCompatActivity {
                                 mRoute = (Route) routes.get(0);
                                 // create a mRouteSymbol graphic
                                 Graphic routeGraphic = new Graphic(mRoute.getRouteGeometry(), mRouteSymbol);
+                                // check before add the route
+                                if (added_route != null){
+                                    mGraphicsOverlay.getGraphics().remove(added_route);
+                                }
                                 // add mRouteSymbol graphic to the map
                                 mGraphicsOverlay.getGraphics().add(routeGraphic);
+                                added_route = routeGraphic;
                                 // get directions
                                 // NOTE: to get turn-by-turn directions Route Parameters should set returnDirection flag as true
                                 final List<DirectionManeuver> directions = mRoute.getDirectionManeuvers();
@@ -670,7 +817,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-
 
     @Override
     protected void onPause(){
