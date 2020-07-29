@@ -2,22 +2,39 @@ package com.example.displaymap;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
+import androidx.core.app.ActivityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Toast;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
 
 import com.esri.arcgisruntime.ArcGISRuntimeEnvironment;
 import com.esri.arcgisruntime.concurrent.ListenableFuture;
 import com.esri.arcgisruntime.data.ArcGISFeature;
+import com.esri.arcgisruntime.data.Feature;
 import com.esri.arcgisruntime.data.FeatureEditResult;
+import com.esri.arcgisruntime.data.FeatureQueryResult;
+import com.esri.arcgisruntime.data.QueryParameters;
 import com.esri.arcgisruntime.data.ServiceFeatureTable;
+import com.esri.arcgisruntime.data.StatisticsQueryParameters;
+import com.esri.arcgisruntime.geometry.Geometry;
 import com.esri.arcgisruntime.geometry.Point;
 import com.esri.arcgisruntime.geometry.SpatialReference;
+import com.esri.arcgisruntime.geometry.SpatialReferences;
 import com.esri.arcgisruntime.layers.FeatureLayer;
 import com.esri.arcgisruntime.loadable.LoadStatus;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
@@ -28,19 +45,79 @@ import com.esri.arcgisruntime.mapping.popup.Popup;
 import com.esri.arcgisruntime.mapping.view.DefaultMapViewOnTouchListener;
 import com.esri.arcgisruntime.mapping.view.IdentifyLayerResult;
 import com.esri.arcgisruntime.mapping.view.MapView;
+import com.esri.arcgisruntime.mapping.view.LocationDisplay;
+import com.esri.arcgisruntime.mapping.view.Graphic;
+import com.esri.arcgisruntime.mapping.view.GraphicsOverlay;
 import com.esri.arcgisruntime.portal.Portal;
 import com.esri.arcgisruntime.portal.PortalItem;
+import com.esri.arcgisruntime.security.AuthenticationManager;
+import com.esri.arcgisruntime.security.DefaultAuthenticationChallengeHandler;
+import com.esri.arcgisruntime.security.OAuthConfiguration;
+import com.esri.arcgisruntime.security.UserCredential;
+import com.esri.arcgisruntime.symbology.PictureMarkerSymbol;
+import com.esri.arcgisruntime.symbology.SimpleLineSymbol;
+import com.esri.arcgisruntime.symbology.SimpleMarkerSymbol;
+import com.esri.arcgisruntime.tasks.networkanalysis.ClosestFacilityParameters;
+import com.esri.arcgisruntime.tasks.networkanalysis.ClosestFacilityResult;
+import com.esri.arcgisruntime.tasks.networkanalysis.ClosestFacilityRoute;
+import com.esri.arcgisruntime.tasks.networkanalysis.ClosestFacilityTask;
+import com.esri.arcgisruntime.tasks.networkanalysis.DirectionManeuver;
+import com.esri.arcgisruntime.tasks.networkanalysis.Facility;
+import com.esri.arcgisruntime.tasks.networkanalysis.Incident;
+import com.esri.arcgisruntime.tasks.networkanalysis.Route;
+import com.esri.arcgisruntime.tasks.networkanalysis.RouteParameters;
+import com.esri.arcgisruntime.tasks.networkanalysis.RouteResult;
+import com.esri.arcgisruntime.tasks.networkanalysis.RouteTask;
+import com.esri.arcgisruntime.tasks.networkanalysis.Stop;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import java.net.MalformedURLException;
 import java.text.AttributedCharacterIterator;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
+import java.util.Collections;
+
+import static com.esri.arcgisruntime.data.QueryParameters.SortOrder.ASCENDING;
+import static com.esri.arcgisruntime.data.QueryParameters.SortOrder.DESCENDING;
 
 public class MainActivity extends AppCompatActivity {
     private ArcGISFeature selectedFeature;
     private ServiceFeatureTable featureTable;
+    /* ** ADD - myLocation ** */
+    private LocationDisplay mLocationDisplay;
 
+    private final SpatialReference mWebMercator = SpatialReferences.getWebMercator();
+    private GraphicsOverlay mFacilityGraphicsOverlay;
+    private GraphicsOverlay mIncidentGraphicsOverlay;
+    private SimpleLineSymbol mRouteSymbol;
+    private List<Facility> mFacilities;
+    private ClosestFacilityTask mClosestFacilityTask;
+    private ClosestFacilityParameters mClosestFacilityParameters;
+    private Point mIncidentPoint;
+    private ProgressDialog mProgressDialog;
+    private RouteTask mRouteTask;
+    private RouteParameters mRouteParams;
+    private Route mRoute;
+    private GraphicsOverlay mGraphicsOverlay;
+
+
+    private void setupOAuthManager() {
+        String clientId = getResources().getString(R.string.client_id);
+        String redirectUrl = getResources().getString(R.string.redirect_url);
+        String clientSecret = getResources().getString(R.string.client_secret);
+        try {
+            OAuthConfiguration oAuthConfiguration = new OAuthConfiguration("https://www.arcgis.com", clientId, redirectUrl);
+            DefaultAuthenticationChallengeHandler authenticationChallengeHandler = new DefaultAuthenticationChallengeHandler(this);
+            AuthenticationManager.setAuthenticationChallengeHandler(authenticationChallengeHandler);
+            AuthenticationManager.addOAuthConfiguration(oAuthConfiguration);
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+    }
     /** 1.1 ver
      *  A custom OnTouchListener on MapView to identify geo-elements when users single tap
      *  on a map view.
@@ -258,6 +335,28 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
+    private void setupLocationDisplay() {
+        mLocationDisplay = mMapView.getLocationDisplay();
+        mLocationDisplay.addDataSourceStatusChangedListener(dataSourceStatusChangedEvent -> {
+            if (dataSourceStatusChangedEvent.isStarted() || dataSourceStatusChangedEvent.getError() == null) {
+                return;
+            }
+
+            int requestPermissionsCode = 2;
+            String[] requestPermissions = new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
+
+            if (!(ContextCompat.checkSelfPermission(MainActivity.this, requestPermissions[0]) == PackageManager.PERMISSION_GRANTED
+                    && ContextCompat.checkSelfPermission(MainActivity.this, requestPermissions[1]) == PackageManager.PERMISSION_GRANTED)) {
+                ActivityCompat.requestPermissions(MainActivity.this, requestPermissions, requestPermissionsCode);
+            } else {
+                String message = String.format("Error in DataSourceStatusChangedListener: %s",
+                        dataSourceStatusChangedEvent.getSource().getLocationDataSource().getError().getMessage());
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+            }
+        });
+//        mLocationDisplay.setAutoPanMode(LocationDisplay.AutoPanMode.COMPASS_NAVIGATION);
+        mLocationDisplay.startAsync();
+    }
 
     private final String TAG = MainActivity.class.getSimpleName();
 
@@ -280,8 +379,10 @@ public class MainActivity extends AppCompatActivity {
 //            int levelOfDetail = 5;
 //            ArcGISMap map = new ArcGISMap(basemapType, latitude, longitude, levelOfDetail);
 //            mMapView.setMap(map);
-            String itemId = "c99d7de508614ee98eb9ed21759d4064";
-            Portal portal = new Portal("https://www.arcgis.com", false);
+            UserCredential credential = new UserCredential("yuan_yongwei", "victor_ve441");
+            String itemId = "69536509520444b895a952d3865daf4d";
+            final Portal portal = new Portal("https://www.arcgis.com");
+            portal.setCredential(credential);
             PortalItem portalItem = new PortalItem(portal, itemId);
             ArcGISMap map = new ArcGISMap(portalItem);
             // set initial viewpoint to a specific region
@@ -419,16 +520,157 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            mLocationDisplay.startAsync();
+        } else {
+            Toast.makeText(MainActivity.this, getResources().getString(R.string.location_permission_denied), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mMapView = findViewById(R.id.mapView);
         ArcGISRuntimeEnvironment.setLicense(getResources().getString(R.string.arcgis_license_key));
+        setupOAuthManager();
         setupMap();
+        setupLocationDisplay();
         featureTable = new ServiceFeatureTable(getResources().getString(R.string.sample_service_url));
-
         // addTrailheadsLayer();
+
+        // symbols that display incident (black cross) and route (blue line) to view
+        SimpleMarkerSymbol incidentSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.Style.CROSS, Color.BLACK, 20);
+        mRouteSymbol = new SimpleLineSymbol(SimpleLineSymbol.Style.SOLID, Color.BLUE, 2.0f);
+        mProgressDialog = new ProgressDialog(this);
+        mProgressDialog.setTitle("Finding route");
+        mGraphicsOverlay = new GraphicsOverlay();
+        //add the overlay to the map view
+        mMapView.getGraphicsOverlays().add(mGraphicsOverlay);
+
+        // create RouteTask instance
+        mRouteTask = new RouteTask(getApplicationContext(), getString(R.string.routing_service));
+        FloatingActionButton mDirectionFab = (FloatingActionButton) findViewById(R.id.directionFAB);
+        mDirectionFab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                mProgressDialog.show();
+
+                if (getSupportActionBar() != null) {
+                    getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                    getSupportActionBar().setHomeButtonEnabled(true);
+                    setTitle(getString(R.string.app_name));
+                }
+
+                // create RouteTask instance
+                mRouteTask = new RouteTask(getApplicationContext(), getString(R.string.routing_service));
+
+                final ListenableFuture<RouteParameters> listenableFuture = mRouteTask.createDefaultParametersAsync();
+                listenableFuture.addDoneListener(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (listenableFuture.isDone()) {
+                                int i = 0;
+                                mRouteParams = listenableFuture.get();
+
+                                Point curPoint = mLocationDisplay.getMapLocation();
+                                Log.e(TAG,curPoint.toString());
+                                // query water source with lowest water salinity near me
+                                Log.e(TAG, Double.toString(curPoint.getX()));
+                                Log.e(TAG, Double.toString(curPoint.getY()));
+                                String whereClause = "longitude < " + (curPoint.getX() + 10.0) +
+                                        " AND longitude > " + (curPoint.getX()-10.0) +
+                                        " AND latitude < " + (curPoint.getY()+10.0) +
+                                        " AND latitude > " + (curPoint.getY()-10.0);
+
+                                QueryParameters queryParams = new QueryParameters();
+                                //String whereClause = "country='US'";
+                                queryParams.setWhereClause(whereClause);
+                                QueryParameters.OrderBy orderBy = new QueryParameters.OrderBy("salinity", ASCENDING);
+                                queryParams.getOrderByFields().add(orderBy);
+
+
+                                ListenableFuture<FeatureQueryResult> queryResultFuture = featureTable.queryFeaturesAsync(queryParams, ServiceFeatureTable.QueryFeatureFields.LOAD_ALL);
+                                Feature feature = null;
+                                    try {
+                                        Iterator<Feature> featureIt = queryResultFuture.get().iterator();
+                                        if (!featureIt.hasNext())
+                                            Log.e(TAG, "no next");
+                                         feature = featureIt.next();
+                                    } catch (ExecutionException e) {
+                                        e.printStackTrace();
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                    Map<String, Object> attr = feature.getAttributes();
+                                    if (attr == null)
+                                        Log.e(TAG, "null attr");
+                                    else
+                                        Log.e(TAG, "attr valid");
+                                    for (Map.Entry<String, Object> entry : attr.entrySet()) {
+                                        System.out.println(entry.getKey() + ":" + entry.getValue().toString());
+                                    }
+                                    Double x = (Double) attr.get("longitude");
+                                    Double y = (Double) attr.get("latitude");
+                                    Log.e(TAG, x.toString());
+                                    Log.e(TAG, y.toString());
+
+                                // create stops
+                                Stop stop1 = new Stop(curPoint);
+                                Stop stop2 = new Stop(
+                                        new Point(x,
+                                                y, SpatialReferences.getWgs84())
+                                );
+
+                                List<Stop> routeStops = new ArrayList<>();
+                                // add stops
+                                routeStops.add(stop1);
+                                routeStops.add(stop2);
+                                mRouteParams.setStops(routeStops);
+
+                                // set return directions as true to return turn-by-turn directions in the result of
+                                // getDirectionManeuvers().
+                                mRouteParams.setReturnDirections(true);
+
+                                // solve
+                                RouteResult result = mRouteTask.solveRouteAsync(mRouteParams).get();
+                                final List routes = result.getRoutes();
+                                mRoute = (Route) routes.get(0);
+                                // create a mRouteSymbol graphic
+                                Graphic routeGraphic = new Graphic(mRoute.getRouteGeometry(), mRouteSymbol);
+                                // add mRouteSymbol graphic to the map
+                                mGraphicsOverlay.getGraphics().add(routeGraphic);
+                                // get directions
+                                // NOTE: to get turn-by-turn directions Route Parameters should set returnDirection flag as true
+                                final List<DirectionManeuver> directions = mRoute.getDirectionManeuvers();
+
+                                String[] directionsArray = new String[directions.size()];
+
+                                for (DirectionManeuver dm : directions) {
+                                    directionsArray[i++] = dm.getDirectionText();
+                                }
+                                Log.d(TAG, directions.get(0).getGeometry().getExtent().getXMin() + "");
+                                Log.d(TAG, directions.get(0).getGeometry().getExtent().getYMin() + "");
+
+
+
+                                if (mProgressDialog.isShowing()) {
+                                    mProgressDialog.dismiss();
+                                }
+
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, e.getMessage());
+                        }
+                    }
+                });
+            }
+        });
     }
+
 
     @Override
     protected void onPause(){
@@ -453,4 +695,5 @@ public class MainActivity extends AppCompatActivity {
         }
         super.onDestroy();
     }
+
 }

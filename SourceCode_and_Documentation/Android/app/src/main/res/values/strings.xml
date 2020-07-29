@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Display Map</string>
-    <string name="sample_service_url">https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/arcgis/rest/services/sample_data/FeatureServer/0</string>
+    <string name="location_permission_denied">User denied permission for device location.</string>
+    <string name="sample_service_url">https://services9.arcgis.com/RiYZ8nZnTVvmpV8H/arcgis/rest/services/sample_data_1593613742747/FeatureServer/0</string>
 </resources>

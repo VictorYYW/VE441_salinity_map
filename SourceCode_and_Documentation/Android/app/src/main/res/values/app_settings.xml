@@ -2,4 +2,8 @@
 <resources>
     <!-- *** ADD *** -->
     <string name="arcgis_license_key">runtimelite,1000,rud8214045754,none,6PB3LNBHPBJ5RJE15077</string>
+    <string name="redirect_url">salinity-map://auth</string>
+    <string name="client_id">PEsvKa6apuYU5JJL</string>
+    <string name="client_secret">db99f264747a44528e2e90a0d5973726</string>
+    <string name="routing_service">https://route.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World</string>
 </resources>
