@@ -77,12 +77,16 @@ public class RegisterActivity extends AppCompatActivity implements View.OnClickL
 
                     //add data to DB
                     mDBOpenHelper.add(username, password);
-                    Intent intent2 = new Intent(this, MainActivity.class);
-                    startActivity(intent2);
+//                    Intent intent2 = new Intent(this, MainActivity.class);
+//                    startActivity(intent2);
+//                    finish();
+                    // Intent testIntent = new Intent(this, MainActivity.class);
+                    // setResult(200, testIntent);
+                    GlobalFlag.isLoggedin = true;
                     finish();
                     Toast.makeText(this,  "Welcome to Salinity Map", Toast.LENGTH_SHORT).show();
                 }else {
-                    Toast.makeText(this, "Sign up Fail. try another username", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Sign up Fail.\ntry another username", Toast.LENGTH_SHORT).show();
                 }
                 break;
         }

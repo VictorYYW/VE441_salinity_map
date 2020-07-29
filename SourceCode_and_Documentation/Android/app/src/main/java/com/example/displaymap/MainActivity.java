@@ -11,6 +11,7 @@ import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.SigningInfo;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -374,8 +375,16 @@ public class MainActivity extends AppCompatActivity {
                             Log.i(TAG, Integer.toString((Integer) attributes.get("salinity")));
                         }
                         // Create popup
-                        Intent myIntent = new Intent(MainActivity.this, PopupActivity.class);
-                        startActivityForResult(myIntent, 100);
+
+                        // login
+                        if (GlobalFlag.isLoggedin){
+                            Intent myIntent = new Intent(MainActivity.this, PopupActivity.class);
+                            startActivityForResult(myIntent, 100);
+                        }
+                        else{
+                            Intent intent1 = new Intent(MainActivity.this, LoginActivity.class);
+                            startActivityForResult(intent1, 200);
+                        }
                     } catch (Exception ex) {
                         Log.i(TAG, "exception in identify: " + ex.getMessage());
                     }
@@ -394,7 +403,31 @@ public class MainActivity extends AppCompatActivity {
         if (resultCode == 100) {
             // display progress dialog while updating attribute callout
             //mProgressDialog.show();
-            updateAttributes(data.getStringExtra("salinity"));
+            try {
+                // check sanity
+                String raw_data = data.getStringExtra("salinity");
+                if (raw_data == null)
+                    return;
+
+                int update_data = Integer.parseInt(raw_data);
+
+                if (update_data < 0)
+                    return;
+                if (!Integer.toString(update_data).equals(raw_data))
+                    return;
+
+                updateAttributes(Integer.toString(update_data));
+            } catch (Exception err){
+                return;
+            }
+        }
+        else if (resultCode == 200){
+            // logged in
+            GlobalFlag.isLoggedin = true;
+            if (GlobalFlag.isLoggedin){
+                Intent myIntent = new Intent(MainActivity.this, PopupActivity.class);
+                startActivityForResult(myIntent, 100);
+            }
         }
     }
     /**
@@ -723,10 +756,10 @@ public class MainActivity extends AppCompatActivity {
                                 // query water source with lowest water salinity near me
                                 Log.e(TAG, Double.toString(curPoint.getX()));
                                 Log.e(TAG, Double.toString(curPoint.getY()));
-                                String whereClause = "longitude < " + (curPoint.getX() + 10.0) +
-                                        " AND longitude > " + (curPoint.getX()-10.0) +
-                                        " AND latitude < " + (curPoint.getY()+10.0) +
-                                        " AND latitude > " + (curPoint.getY()-10.0);
+                                String whereClause = "longitude < " + (curPoint.getX() + 0.5) +
+                                        " AND longitude > " + (curPoint.getX()-0.5) +
+                                        " AND latitude < " + (curPoint.getY()+0.5) +
+                                        " AND latitude > " + (curPoint.getY()-0.5);
 
                                 QueryParameters queryParams = new QueryParameters();
                                 //String whereClause = "country='US'";

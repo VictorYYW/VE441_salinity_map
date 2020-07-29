@@ -75,9 +75,17 @@ public class LoginActivity extends AppCompatActivity implements View.OnClickList
                         }
                     }
                     if (match) {
+//                        String msg = editText.getText().toString();
+//                        Intent myIntent = new Intent();
+//                        myIntent.putExtra("salinity", msg); //Optional parameters
+//                        setResult(100, myIntent);
+//                        finish();
+
                         Toast.makeText(this, "Welcome back, "+username, Toast.LENGTH_SHORT).show();
-                        Intent intent = new Intent(this, MainActivity.class);
-                        startActivity(intent);
+                        // Intent intent = new Intent(this, MainActivity.class);
+                        // startActivity(intent);
+                        Intent testIntent = new Intent();
+                        setResult(200, testIntent);
                         finish();
                     } else {
                         Toast.makeText(this, "Wrong username/password. Please try again", Toast.LENGTH_SHORT).show();
