@@ -562,7 +562,7 @@ public class MainActivity extends AppCompatActivity {
             ArcGISMap map = new ArcGISMap(portalItem);
             // set initial viewpoint to a specific region
             map.setInitialViewpoint(
-                    new Viewpoint(new Point(-12977012.785807, 4514257.550369, SpatialReference.create(3857)), 38015210));
+                    new Viewpoint(new Point(-13577012.785807, 4514257.550369, SpatialReference.create(3857)), 4015210));
             mMapView.setMap(map);
 
             // add a listener to detect taps on the map view
