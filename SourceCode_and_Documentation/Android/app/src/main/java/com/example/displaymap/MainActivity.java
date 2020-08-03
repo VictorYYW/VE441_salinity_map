@@ -555,7 +555,7 @@ public class MainActivity extends AppCompatActivity {
 //            int levelOfDetail = 5;
 //            ArcGISMap map = new ArcGISMap(basemapType, latitude, longitude, levelOfDetail);
 //            mMapView.setMap(map);
-            UserCredential credential = new UserCredential("yuan_yongwei", "victor_ve441");
+            UserCredential credential = new UserCredential("leevius", "ve441salinity");
             String itemId = "69536509520444b895a952d3865daf4d";
             final Portal portal = new Portal("https://www.arcgis.com");
             portal.setCredential(credential);
