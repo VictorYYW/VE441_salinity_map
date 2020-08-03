@@ -529,7 +529,8 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
             }
         });
-//        mLocationDisplay.setAutoPanMode(LocationDisplay.AutoPanMode.COMPASS_NAVIGATION);
+        mLocationDisplay.setAutoPanMode(LocationDisplay.AutoPanMode.RECENTER);
+        mLocationDisplay.setInitialZoomScale(20000000);
         mLocationDisplay.startAsync();
     }
 
@@ -752,14 +753,14 @@ public class MainActivity extends AppCompatActivity {
                                 mRouteParams = listenableFuture.get();
 
                                 Point curPoint = mLocationDisplay.getMapLocation();
-                                Log.e(TAG,curPoint.toString());
+                                Log.e(TAG, curPoint.toString());
                                 // query water source with lowest water salinity near me
                                 Log.e(TAG, Double.toString(curPoint.getX()));
                                 Log.e(TAG, Double.toString(curPoint.getY()));
-                                String whereClause = "longitude < " + (curPoint.getX() + 0.5) +
-                                        " AND longitude > " + (curPoint.getX()-0.5) +
-                                        " AND latitude < " + (curPoint.getY()+0.5) +
-                                        " AND latitude > " + (curPoint.getY()-0.5);
+                                String whereClause = "longitude < " + (curPoint.getX() + 2) +
+                                        " AND longitude > " + (curPoint.getX() - 2) +
+                                        " AND latitude < " + (curPoint.getY() + 2) +
+                                        " AND latitude > " + (curPoint.getY() - 2);
 
                                 QueryParameters queryParams = new QueryParameters();
                                 //String whereClause = "country='US'";
@@ -770,28 +771,28 @@ public class MainActivity extends AppCompatActivity {
 
                                 ListenableFuture<FeatureQueryResult> queryResultFuture = featureTable.queryFeaturesAsync(queryParams, ServiceFeatureTable.QueryFeatureFields.LOAD_ALL);
                                 Feature feature = null;
-                                    try {
-                                        Iterator<Feature> featureIt = queryResultFuture.get().iterator();
-                                        if (!featureIt.hasNext())
-                                            Log.e(TAG, "no next");
-                                        feature = featureIt.next();
-                                    } catch (ExecutionException e) {
-                                        e.printStackTrace();
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                    }
-                                    Map<String, Object> attr = feature.getAttributes();
-                                    if (attr == null)
-                                        Log.e(TAG, "null attr");
-                                    else
-                                        Log.e(TAG, "attr valid");
-                                    for (Map.Entry<String, Object> entry : attr.entrySet()) {
-                                        System.out.println(entry.getKey() + ":" + entry.getValue().toString());
-                                    }
-                                    Double x = (Double) attr.get("longitude");
-                                    Double y = (Double) attr.get("latitude");
-                                    Log.e(TAG, x.toString());
-                                    Log.e(TAG, y.toString());
+                                try {
+                                    Iterator<Feature> featureIt = queryResultFuture.get().iterator();
+                                    if (!featureIt.hasNext())
+                                        Log.e(TAG, "no next");
+                                    feature = featureIt.next();
+                                } catch (ExecutionException e) {
+                                    e.printStackTrace();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                                Map<String, Object> attr = feature.getAttributes();
+                                if (attr == null)
+                                    Log.e(TAG, "null attr");
+                                else
+                                    Log.e(TAG, "attr valid");
+                                for (Map.Entry<String, Object> entry : attr.entrySet()) {
+                                    System.out.println(entry.getKey() + ":" + entry.getValue().toString());
+                                }
+                                Double x = (Double) attr.get("longitude");
+                                Double y = (Double) attr.get("latitude");
+                                Log.e(TAG, x.toString());
+                                Log.e(TAG, y.toString());
 
                                 // create stops
                                 Stop stop1 = new Stop(curPoint);
@@ -817,7 +818,7 @@ public class MainActivity extends AppCompatActivity {
                                 // create a mRouteSymbol graphic
                                 Graphic routeGraphic = new Graphic(mRoute.getRouteGeometry(), mRouteSymbol);
                                 // check before add the route
-                                if (added_route != null){
+                                if (added_route != null) {
                                     mGraphicsOverlay.getGraphics().remove(added_route);
                                 }
                                 // add mRouteSymbol graphic to the map
@@ -836,7 +837,6 @@ public class MainActivity extends AppCompatActivity {
                                 Log.d(TAG, directions.get(0).getGeometry().getExtent().getYMin() + "");
 
 
-
                                 if (mProgressDialog.isShowing()) {
                                     mProgressDialog.dismiss();
                                 }
@@ -847,6 +847,14 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 });
+            }
+        });
+
+        FloatingActionButton mrecenterFab = (FloatingActionButton) findViewById(R.id.recenterFAB);
+        mrecenterFab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setupLocationDisplay();
             }
         });
     }
